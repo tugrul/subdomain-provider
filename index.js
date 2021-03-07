@@ -15,7 +15,7 @@ const Redlock = require('redlock');
 
 const router = express.Router()
 
-const redisClient = new RedisPromise(redis.createClient());
+const redisClient = new RedisPromise(redis.createClient(process.env.REDIS_URL));
 const redlock = new Redlock([redisClient.originalClient]);
 const doClient = new DigitalOcean(process.env.DO_API_TOKEN);
 
@@ -172,7 +172,7 @@ async function cleanValidationData(authToken) {
 }
 
 const app = express();
-const port = 3000;
+const port = process.env.APP_PORT;
 
 app.use(express.json())
 app.use('/subdomain-provider', router);
