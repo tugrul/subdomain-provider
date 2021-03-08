@@ -195,6 +195,26 @@ router.post('/check-subdomain-availability', wrap(async (req, res) => {
 
 }));
 
+router.get('/banned-subdomain-list', wrap(async (req, res) => {
+
+    try {
+        res.json({success: true, list: await redisClient.smembers('banned_subdomains')});
+    } catch (err) {
+        res.json({success: false, message: err.message});
+    }
+
+}));
+
+router.get('/manifest', wrap(async (req, res) => {
+
+    res.json({
+        success: true,
+        root_domain: process.env.ROOT_DOMAIN,
+        sub_domain_ttl: process.env.SUB_DOMAIN_TTL
+    });
+
+}));
+
 router.get('/generate-token', adminAuthChecker, wrap(async (req, res) => {
 
     res.json({
