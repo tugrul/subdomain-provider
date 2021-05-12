@@ -10,6 +10,7 @@ const {Validator: IpValidator} = require('ip-num/Validator');
 
 const RedisPromise = require('./lib/redis-promise');
 const authChecker = require('./lib/auth-checker');
+const {isValidLicenseId} = require('./lib/cryptlex-api');
 
 const Redlock = require('redlock');
 
@@ -22,29 +23,13 @@ const doClient = new DigitalOcean(process.env.DO_API_TOKEN);
 
 
 const clientAuthChecker = authChecker(
-    async (token) => await redisClient.sismember('client_tokens', token)
+    async (token) => await isValidLicenseId(token)
 );
 
 const adminAuthChecker = authChecker(
     async (token) => process.env.ADMIN_TOKEN === token
 );
 
-async function getFreshToken(maxRetry = 10) {
-
-    if (maxRetry === 0) {
-        throw new Error('reached max retry count');
-    }
-
-    // generate new token
-    const token = uuidv4();
-
-    // retry to token generation if there is conflict
-    if (await redisClient.sadd('client_tokens', token) === 0) {
-        return getFreshToken(maxRetry - 1);
-    }
-
-    return token;
-}
 
 function isValidSubdomain(subdomain) {
     return /^[a-z0-9][a-z0-9\-]{0,49}$/i.test(subdomain);
@@ -211,14 +196,6 @@ router.get('/manifest', wrap(async (req, res) => {
         success: true,
         root_domain: process.env.ROOT_DOMAIN,
         sub_domain_ttl: process.env.SUB_DOMAIN_TTL
-    });
-
-}));
-
-router.get('/generate-token', adminAuthChecker, wrap(async (req, res) => {
-
-    res.json({
-        token: await getFreshToken()
     });
 
 }));
