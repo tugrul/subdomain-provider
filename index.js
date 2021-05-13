@@ -26,13 +26,18 @@ const clientAuthChecker = authChecker(
     async (token) => await isValidLicenseId(token)
 );
 
+const optionalClientAuthChecker = authChecker(
+    async (token) => await isValidLicenseId(token),
+    true
+);
+
 const adminAuthChecker = authChecker(
     async (token) => process.env.ADMIN_TOKEN === token
 );
 
 
 function isValidSubdomain(subdomain) {
-    return /^[a-z0-9][a-z0-9\-]{0,49}$/i.test(subdomain);
+    return /^[a-z0-9][a-z0-9\-]{2,49}$/i.test(subdomain);
 }
 
 async function isSubdomainAvailable(subdomain, authToken) {
@@ -47,15 +52,11 @@ async function isSubdomainAvailable(subdomain, authToken) {
 
     const subdomainOwner = await redisClient.hget('client_subdomains', subdomain);
 
-    if (!subdomainOwner) {
-        return true;
+    if (!subdomainOwner || (authToken && authToken === subdomainOwner)) {
+        return;
     }
 
-    if (authToken && authToken !== subdomainOwner) {
-        throw new Error('subdomain has a different owner');
-    }
-
-    return false;
+    throw new Error('subdomain has a different owner');
 }
 
 async function updateSubdomainRecord(type, authToken, subdomain, address, prefix = '') {
@@ -162,8 +163,9 @@ const port = process.env.APP_PORT;
 app.use(express.json())
 app.use('/subdomain-provider', router);
 
-router.post('/check-subdomain-availability', wrap(async (req, res) => {
+router.post('/check-subdomain-availability', optionalClientAuthChecker, wrap(async (req, res) => {
 
+    const {authToken} = res.locals;
     const {subdomain} = req.body;
 
     if (!subdomain) {
@@ -172,8 +174,8 @@ router.post('/check-subdomain-availability', wrap(async (req, res) => {
     }
 
     try {
-        const status = await isSubdomainAvailable(subdomain);
-        res.json({success: true, available: status});
+        await isSubdomainAvailable(subdomain, authToken);
+        res.json({success: true, available: true});
     } catch (err) {
         res.json({success: false, message: err.message});
     }
