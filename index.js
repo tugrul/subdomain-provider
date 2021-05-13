@@ -133,6 +133,24 @@ async function updateLatestSubdomainBook(type, authToken, subdomain) {
     return redisClient.hset('client_subdomains_last', authToken, subdomain);
 }
 
+async function getActualClientConfig(authToken) {
+    const subdomain = await redisClient.hget('client_subdomains_last', authToken);
+
+    if (!subdomain) {
+        throw new Error('there is no subdomain registered before for this client');
+    }
+
+    const records = await Promise.all(['a', 'aaaa'].map(async type => ({
+        type,
+        value: await redisClient.hget('client_subdomain_' + type + '_address', subdomain)
+    })));
+
+    return {
+        subdomain,
+        records
+    };
+}
+
 async function applySubdomainRecord(type, authToken, subdomain, data, prefix = '') {
     const lock = await redlock.lock('subdomain_record_attempt:' + subdomain, 50000);
 
@@ -178,6 +196,30 @@ router.post('/check-subdomain-availability', optionalClientAuthChecker, wrap(asy
         res.json({success: true, available: true});
     } catch (err) {
         res.json({success: false, message: err.message});
+    }
+
+}));
+
+router.get('/actual-configuration', optionalClientAuthChecker, wrap(async(req, res) => {
+
+    const {authToken} = res.locals;
+    const emptyResponse = {
+        subdomain: '',
+        records: [
+            {type: 'a', value: ''},
+            {type: 'aaaa', value: ''}
+        ]
+    };
+
+    if (!authToken) {
+        return emptyResponse;
+    }
+
+
+    try {
+        return getActualClientConfig(authToken);
+    } catch (err) {
+        return emptyResponse;
     }
 
 }));
