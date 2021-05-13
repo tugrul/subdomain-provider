@@ -200,26 +200,20 @@ router.post('/check-subdomain-availability', optionalClientAuthChecker, wrap(asy
 
 }));
 
-router.get('/actual-configuration', optionalClientAuthChecker, wrap(async(req, res) => {
+router.get('/actual-configuration', clientAuthChecker, wrap(async(req, res) => {
 
     const {authToken} = res.locals;
-    const emptyResponse = {
-        subdomain: '',
-        records: [
-            {type: 'a', value: ''},
-            {type: 'aaaa', value: ''}
-        ]
-    };
-
-    if (!authToken) {
-        return emptyResponse;
-    }
-
 
     try {
         return getActualClientConfig(authToken);
     } catch (err) {
-        return emptyResponse;
+        return {
+            subdomain: '',
+            records: [
+                {type: 'a', value: ''},
+                {type: 'aaaa', value: ''}
+            ]
+        };
     }
 
 }));
