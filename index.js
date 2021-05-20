@@ -10,7 +10,7 @@ const {Validator: IpValidator} = require('ip-num/Validator');
 
 const RedisPromise = require('./lib/redis-promise');
 const authChecker = require('./lib/auth-checker');
-const {isValidLicenseId} = require('./lib/cryptlex-api');
+const {isValidLicenseId, getLicenseIdByLicenseKey} = require('./lib/cryptlex-api');
 
 const Redlock = require('redlock');
 
@@ -235,6 +235,24 @@ router.get('/manifest', wrap(async (req, res) => {
         root_domain: process.env.ROOT_DOMAIN,
         sub_domain_ttl: process.env.SUB_DOMAIN_TTL
     });
+
+}));
+
+router.post('/get-license-id', wrap(async(req, res) => {
+
+    const {licenseKey} = req.body;
+
+    if (!licenseKey) {
+        res.json({success: false, message: 'license key is not provided'});
+        return;
+    }
+
+    try {
+        const licenseId = await getLicenseIdByLicenseKey(licenseKey);
+        res.json({success: true, licenseId});
+    } catch (err) {
+        res.json({success: false, message: 'an error occured during license key checking'});
+    }
 
 }));
 
