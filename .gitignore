@@ -1,3 +1,4 @@
 /node_modules/
 /data/dump.rdb
 .env
+/logs/*.log

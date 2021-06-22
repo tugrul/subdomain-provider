@@ -20,7 +20,7 @@ const redisClient = new RedisPromise(redis.createClient(process.env.REDIS_URL));
 const redlock = new Redlock([redisClient.originalClient]);
 const doClient = new DigitalOcean(process.env.DO_API_TOKEN);
 
-
+const logger = require('./logger');
 
 const clientAuthChecker = authChecker(
     async (token) => await isValidLicenseId(token)
@@ -251,6 +251,7 @@ router.post('/get-license-id', wrap(async(req, res) => {
         const licenseId = await getLicenseIdByLicenseKey(licenseKey);
         res.json({success: true, licenseId});
     } catch (err) {
+        logger.error('get license id endpoint', err);
         res.json({success: false, message: 'an error occured during license key checking'});
     }
 
