@@ -147,6 +147,59 @@ async function cleanValidationData(authToken) {
     await redisClient.hdel('client_subdomain_txt_id', authToken);
 }
 
+async function getClientsSubdomains() {
+
+    const clientSubdomains = await redisClient.hgetall('client_subdomains');
+    const clientSubdomainsMap = new Map();
+
+    for (const [subdomain, clientId] of Object.entries(clientSubdomains)) {
+
+        if (clientSubdomainsMap.has(clientId)) {
+            clientSubdomainsMap.get(clientId).push(subdomain);
+        } else {
+            clientSubdomainsMap.set(clientId, [subdomain]);
+        }
+    }
+
+    return clientSubdomainsMap;
+}
+
+async function getOrphanSubdomains() {
+
+    const clientSubdomains = await getClientsSubdomains();
+
+    const orphanSubdomains = new Map();
+
+    for (const [clientId, subdomains] of clientSubdomains) {
+        const subdomain = await redisClient.hget('client_subdomains_last', clientId);
+
+        if (!subdomain) {
+            orphanSubdomains.set(clientId, subdomains);
+        } else {
+            const targetSubdomains = subdomains.filter(target => target.toLowerCase() !== subdomain.toLowerCase());
+            if(targetSubdomains.length > 0) {
+                orphanSubdomains.set(clientId, targetSubdomains);
+            }
+        }
+    }
+
+    return orphanSubdomains;
+}
+
+async function isSubdomainExpired(subdomain, expireTime) {
+    if (!expireTime) {
+        return true;
+    }
+
+    const targetTime = await redisClient.hget('client_subdomains_book_time', subdomain);
+
+    if (!targetTime) {
+        return true;
+    }
+
+    return parseInt(targetTime) < parseInt(expireTime);
+}
+
 const app = express();
 const port = process.env.APP_PORT;
 
@@ -190,6 +243,28 @@ router.get('/actual-configuration', clientAuthChecker, wrap(async(req, res) => {
     }
 
 }));
+
+router.purge('/orphan-name-list', adminAuthChecker, wrap(async(req, res) => {
+
+    const {expireTime} = req.body;
+
+    const orphanSubdomains = await getOrphanSubdomains();
+
+    for (const [clientId, subdomains] of orphanSubdomains) {
+        for (const subdomain of subdomains) {
+            if (await isSubdomainExpired(subdomain, expireTime)) {
+                await redisClient.hdel('client_subdomains', subdomain);
+                await redisClient.hdel('client_subdomains_book_time', subdomain);
+            }
+        }
+    }
+
+    res.json({success: true});
+}));
+
+router.get('/orphan-name-list', adminAuthChecker, wrap(async (req, res) => {
+    res.json(Object.fromEntries(await getOrphanSubdomains()));
+}))
 
 router.get('/banned-subdomain-list', wrap(async (req, res) => {
 
