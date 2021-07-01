@@ -77,8 +77,6 @@ async function updateSubdomainRecord(type, authToken, subdomain, address, prefix
         ttl: process.env.SUB_DOMAIN_TTL
     };
 
-    console.log(options);
-
     const domainRecordId = await redisClient.hget(resourceName, authToken);
 
     if (domainRecordId) {
@@ -95,39 +93,13 @@ async function updateSubdomainRecord(type, authToken, subdomain, address, prefix
     return lock.unlock();
 }
 
-async function updateRecordSubdomainName(type, subdomain, authToken) {
-    const recordId = await redisClient.hget('client_subdomain_' + type + '_id', authToken);
-
-    if (!recordId) {
-        return;
-    }
-
-    const address = await redisClient.hget('client_subdomain_' + type + '_address', subdomain);
-
-    if (!address) {
-        return;
-    }
-
-    return doClient.domains.updateRecord(process.env.ROOT_DOMAIN, recordId, {
-        type: type.toUpperCase(),
-        name: subdomain,
-        data: address,
-        ttl: process.env.SUB_DOMAIN_TTL
-    });
-}
 
 async function updateLatestSubdomainBook(type, authToken, subdomain) {
 
     const prevSubdomain = await redisClient.hget('client_subdomains_last', authToken);
 
-    if (!prevSubdomain || prevSubdomain === subdomain) {
+    if (prevSubdomain && prevSubdomain === subdomain) {
         return;
-    }
-
-    for (const target of ['a', 'aaaa']) {
-        if (type !== target) {
-            await updateRecordSubdomainName(target, subdomain, authToken);
-        }
     }
 
     return redisClient.hset('client_subdomains_last', authToken, subdomain);
@@ -205,15 +177,16 @@ router.get('/actual-configuration', clientAuthChecker, wrap(async(req, res) => {
     const {authToken} = res.locals;
 
     try {
-        return getActualClientConfig(authToken);
+        const config = await getActualClientConfig(authToken);
+        res.json(config);
     } catch (err) {
-        return {
+        res.json({
             subdomain: '',
             records: [
                 {type: 'a', value: ''},
                 {type: 'aaaa', value: ''}
             ]
-        };
+        });
     }
 
 }));
